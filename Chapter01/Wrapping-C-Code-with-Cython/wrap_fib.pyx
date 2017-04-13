@@ -1,4 +1,4 @@
-# distutils: sources = cdef.c
+# distutils: sources = cfib.c
 cdef extern from "cfib.h":
     double cfib(int n)
 

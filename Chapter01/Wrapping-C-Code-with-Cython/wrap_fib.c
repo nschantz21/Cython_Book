@@ -7,7 +7,7 @@
             "cfib.h"
         ], 
         "sources": [
-            "cdef.c"
+            "cfib.c"
         ]
     }, 
     "module_name": "wrap_fib"
@@ -994,7 +994,7 @@ PyMODINIT_FUNC PyInit_wrap_fib(void)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "wrap_fib.pyx":1
- * # distutils: sources = cdef.c             # <<<<<<<<<<<<<<
+ * # distutils: sources = cfib.c             # <<<<<<<<<<<<<<
  * cdef extern from "cfib.h":
  *     double cfib(int n)
  */
