@@ -1,0 +1,24 @@
+Chapter 3: Cython in Depth
+
+Interpreted Versus Compiled Execution
+    
+    There is a way to bridge the divide between the bytecode-executing VM and machine code–executing CPU: the Python interpreter can run compiled C code directly and transparently to the end user. The C code must be compiled into a specific kind of dynamic library known as an extension module. These modules are full-fledged Python modules, but the code inside of them has been precompiled into machine code by a standard C compiler. When running code in an extension module, the Python VM no longer interprets high-level bytecodes, but instead runs machine code directly. This removes the interpreter’s performance overhead while any operation inside this extension module is running
+    we can use the cython and standard C compilers to translate Cython source code into a compiled platform-specific extension module. Whenever Python runs anything inside an extension module, it is running compiled code, so no interpreter overhead can slow things down.
+    
+Dynamic Versus Static Typing
+
+    Given Python’s design and flexibility, the Python interpreter always has to determine the low-level operation in a completely general way, because a variable can have any type at any time. This is known as dynamic dispatch, and for many reasons, fully general dynamic dispatch is slow.
+    Because C is compiled and statically typed, the C compiler can determine at compile time what low-level operations to perform and what low-level data to pass as arguments. At runtime, a compiled C program skips nearly all steps that the Python interpreter must perform.
+
+Static Type Declaration with cdef
+
+    The important difference between dynamic variables and static variables is that static variables with C types have C semantics, which changes the behavior of assignment. It also means these variables follow C coercion and casting rules.
+    Inside a function, cdef statements are indented and the static variables declared are local to that function. An equivalent way to declare multiple variables is by means of a cdef block, which groups the declarations in an indented region.  
+    C keyword "static" is not supported in Cython.  C keyword "const" is supported, but has a slightly different use - explained later.
+
+Automatic Type Inference in Cython
+
+    Cython does not limit the C-level types that we can use, which is especially useful when we are wrapping external C libraries.
+    By means of the infer_types compiler directive we can give Cython more leeway to infer types in cases that may possibly change semantics.
+    To enable type inference for a function, we can use the decorator form of infer_types (@cython.infer_types(True)).
+    When enabling infer_types, we are taking responsibility to ensure that integer operations do not overflow and that semantics do not change from the untyped version. The infer_types directive can be enabled at function scope or globally, making it easy to test whether it changes the results of the code base, and whether it makes a difference in performance.
