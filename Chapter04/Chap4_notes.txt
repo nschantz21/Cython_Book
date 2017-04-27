@@ -1,0 +1,38 @@
+Chapter 4: Cython in Practice: N-Body Simulation
+
+
+Overview of the N-Body Python Code
+
+    overview of simulator - I'm not going to spend time making it.
+    
+Converting to Cython
+
+    Using cProfile, we can see where runtime is spent. If Pareto Principle holds true, most of the comp cost should be fairly concentrated.
+    We can build the Cython extension module directly from the original python file by changing the extension to '.pyx', making a setup.py file that calls cythonize on our pyx file, and then building it.  We can then call then import our new module into a python program.  Simply compiling the pure Python into Cython already provides significant performance improvement.
+
+    Python Data Structures and Organization
+        
+        We want to optimize the representation of frequently accessed values - perhaps through static typing.
+        
+    Converting Data Structures to structs
+    
+        With the C version, accessing and updating the planet’s data will have much better performance, as these operations will use fast C iteration and optimized lookups, rather than the general (and slow) iteration and lookups we know to expect from the Python interpreter.
+        We want to leave most of the Python code unmodified, and use the C code where performance matters.  We can accomplish this by making a function that converts Python containers into C structs and/or the opposite.  Functions that utilize these objects will probably have to be modified.
+    
+    Running the Cythonized Version
+    
+        it's a lot faster.  It would be even faster using the libc.math function sqrt.  Importing functions, when done properly can drastically imporve performance. 
+        
+FOLLOW THESE STEPS:
+
+1. Profile the pure-Python version (using the cProfile module or IPython’s %run -p magic command) to determine where the code spends its time
+
+2. Inspect the hotspots for nested for loops, numeric-heavy operations, and nested Python containers, all of which can be easily converted with Cython to use more efficient C-level constructs.
+
+3. Use Cython to declare C data structures equivalent to the Python data structures.  reate converters (if necessary) to transform Python data to C data.
+
+4. Convert the hotspots to use our C-level data structures. Remove Python data structures from nested loops to the extent possible. Ensure all variables used in nested loops (including the loop variables themselves) are statically typed.
+
+5. Test the code to ensure the modifications have not changed the semantics. Profile again. If performance is not satisfactory, use Cython profiling tools to draw attention to inefficient code.
+
+6. Repeat as necessary.
