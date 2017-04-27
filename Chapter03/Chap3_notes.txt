@@ -22,3 +22,105 @@ Automatic Type Inference in Cython
     By means of the infer_types compiler directive we can give Cython more leeway to infer types in cases that may possibly change semantics.
     To enable type inference for a function, we can use the decorator form of infer_types (@cython.infer_types(True)).
     When enabling infer_types, we are taking responsibility to ensure that integer operations do not overflow and that semantics do not change from the untyped version. The infer_types directive can be enabled at function scope or globally, making it easy to test whether it changes the results of the code base, and whether it makes a difference in performance.
+    
+C Pointers in Cython
+
+    Cython does not support the *a syntax to dereference a C pointer. Instead, we index into the pointer at location 0 to dereference a pointer in Cython(ie pointer[0]). This syntax also works to dereference a pointer in C, although that’s rare.
+    Alternatively, we can use the cython.operator.dereference function-like operator to dereference a pointer. We access this operator by cimporting from the special cython namespace.
+    Another difference between Cython and C arises when we are using pointers to structs. Cython, uses dot access whether we have a nonpointer struct variable or a pointer to a struct. In C we use pointer->member, but in Cython we use pointer.member
+    Wherever we use the arrow operator in C, we use the dot operator in Cython, and Cython will generate the proper C-level code.
+    
+Mixing Statically and Dynamically Typed Variables
+
+    Cython allows assignments between statically and dynamically typed variables. This fluid blending of static and dynamic is a powerful feature that we will use in several instances: it allows us to use dynamic Python objects for the majority of our code base, and easily convert them into fast, statically typed analogues for the performance-critical sections.
+    There are special instructructions for certain type conversion - see section for details.
+
+Statically Declaring Variables with a Python Type
+
+    It is possible to use cdef to statically declare variables with a Python type.  Not all Python types can be statically declared: they must be implemented in C and Cython must have access to the declaration. The built-in Python types already satisfy these requirements.  Cython declares them as C pointers to some built-in Python struct type. They can be used like ordinary Python variables, but are constrained to their declared type.  Dynamic variables can be initialized from statically declared Python types (and then redeclared however we want), but static type variables are locked to their type at compile time and runtime.
+    
+Static Typing for Speed
+
+    the more static type information we provide, the better Cython can optimize the result.  static typing allows Cython to remove dynamic dispatch. When we work with Python objects in Cython, whether statically declared or dynamic, Cython still manages all aspects of the object for us, which includes the tedium of reference counting
+
+Reference Counting and Static String Types
+
+    Cython handles all reference counting for us, ensuring a Python object (whether statically typed or dynamic) is finalized when its reference count reaches zero.  When a C-level object is referring to (rvalue) data that is managed by a Python object, we have to create a temporary object so that Python (automatic garbage collector) does not delete the data, and we must ensure the temporary object is maintained as long as the C object buffer is required.  This is important in creating C pointers to rvalue character arrays using a Python buffer object.
+
+Cython’s Three Kinds of Functions
+
+        Cython supports both Python and C functions and allows them to call each other in a natural and straightforward way, all in the same source file.
+    
+    Python Functions in Cython with the def Keyword
+    
+        Cython supports regular Python functions defined with the def keyword.  In Cython, the function argument will be a dynamically typed Python object when called. With respect to implementation, these two types of functions have some important differences. The Python version has type (function), while the Cython version has type (builtin_function_or_method). The Python version has several attributes available to it—such as __name__—that are modifiable, while the Cython version is not modifiable. The Python version, when called, executes bytecodes with the Python interpreter, while the Cython version runs compiled C code that calls into the Python/C API, bypassing bytecode interpretation entirely.
+        
+    C Functions in Cython with the cdef Keyword
+    
+        cdef function’s arguments and return type are typically statically typed, and they can work with C pointer objects, structs, and other C types that cannot be automatically coerced to Python types.  you can use/declare Python objects and dynamic variables in cdef functions, or as arguments. cdef functions are typically used when we want to get as close to C as possible without writing C code directly. The optional return type of a cdef function can be any static type. We can also have a return type of void. If the return type is omitted, then it defaults to object.  Cython does not allow a cdef function to be called from external Python code (a differenct source file).  Essentially we wrap the cdef in a def; however, be aware that the return of the python function is limited to the return type of the C function, and the two types do not always map perfectly.
+        
+    Combining def and cdef Functions with cpdef
+        
+        A single cpdef function gives us these two functions automatically: we get a C-only version of the function and a Python wrapper for it, both with the same name. When we call the function from Cython, we call the C-only version; when we call the function from Python, the wrapper is called.   cpdef drawback: its arguments and return types have to be compatible with both Python and C types.  we cannot use void, C pointers, or C arrays indiscriminately as the argument types or return type of cpdef functions.
+        
+    Functions and Exception Handling
+    
+        cdef and cpdef—may return a non-Python type exception, which makes some other exception-indicating mechanism necessary.
+        To correctly propagate an exception, Cython provides an except clause to allow a cdef or cpdef function to communicate to its caller that a Python exception has or may have occurred during its execution.
+        We can add the keyword "except" optionally followed by "?" if the exception return could be a valid result of the function.  This is followed by the exception state value.  if the excpetion value is returned, Cython checks if the global exception state has been set, and if so, starts unwinding the stack.  If there is a return value that always indicates an error has occurred without ambiguity, then the question mark can be omitted. Alternatively, to have Cython check if an exception has been raised regardless of return value, we can use the except * clause instead - lots of overhead.
+    
+    Functions and the embedsignature Compiler Directive
+    
+        We can instruct Cython to inject the compiled function’s Python signature into the docstring with the embedsignature compiler directive. and setting it to True.
+        This can be helpful to know the argument names, their default values, the order in which arguments are passed in, and more.
+        
+Type Coercion and Casting
+    
+    Cython provides a casting operator that is very similar to C’s casting operator, except that it replaces parentheses with angle brackets. 
+        ex. cdef int *ptr_i = <int*>v
+    Explicit casting in C is not checked, providing total control over type representation. Such bare casts are appropriate only when we are certain that the object being cast has a compatible type.  When we are less than certain and want Cython to check the type before casting, we can use the checked casting operator instead:
+    ex. cdef list cast_list = <list?>a
+
+Declaring and Using structs, unions, and enums
+
+    Cython’s syntax for struct and union declarations uses cdef and an indented block for the struct or union members.
+    We can combine struct and union declarations with ctypedef, which creates a new type alias for the struct or union.
+    Nested and anonymous inner struct or union declarations are not supported. It is necessary to un-nest the declarations and to provide dummy names when necessary.
+    
+    To define an enum, we can define the members on separate lines, or on one line separated with commas.
+
+Type Aliasing with ctypedef
+
+    Essential when interfacing with external code that uses typedef aliases.
+    A ctypedef statement must occur at file scope, and cannot be used inside a function (or other local) scope to declare a local type name. The typedef is passed through to the generated source code.
+    
+    Fused Types and Generic Programming
+    
+        fused types, allow us to refer to several related types with a single type definition. Cython creates a function version for each of the fused type specializations. we cannot mix specializations for the same fused type from other Cython code. We can create our own fused type to group C types.  This uses the ctypedef fused statement. If a function or method uses a fused type, at least one of its arguments must be declared with that fused type, to allow Cython to determine the actual function specialization to dispatch to at compile time or runtime. Provided at least one argument has a fused type, the function or method can have local variables of the fused type as well. - fused types are still experimental.
+
+Cython for Loops and while Loops
+
+        Use static typing on iterators and ranges to speed up.
+    
+    Guidelines for Efficient Loops
+        
+        When looping over a range call, we should type the range argument as a C integer
+        If we are certain the expression will not cause integer overflow, we should statically type the index variable as well
+        For efficient loops over containers, consider converting the container to a C++ equivalent container or using typed memoryviews instead.
+        To improve while loops, use typed variables and cdef functions.
+        Simple while True loops with an internal break are efficiently translated to C automatically.
+
+The Cython Preprocessor
+
+        Cython has a DEF keyword that creates a macro, which is a compile-time symbolic constant akin to #define C preprocessor symbolic macros. These can be useful for giving meaningful names to magic numbers, allowing them to be updated and changed in a single location. They are textually substituted with their value at compile time.
+    
+        Remember that the righthand side of a DEF declaration must ultimately evaluate to an int, float, or string object.
+        Like the C preprocessor, cython also supports conditional compilation with the all-caps IF-ELIF-ELSE compile-time statement.
+
+Bridging the Python 2 and Python 3 Divide
+
+        Cython code can be compiled for either Python 2 or Python 3 runtimes.  Cython’s ability to generate a single extension module that can be compiled, unmodified, for either Python 2 or Python 3 can remove much of the pain and tedium of porting version 2 extension code to version 3.
+        
+    str, unicode, bytes, and All That
+    
+        The bytes type is the same for all versions, and Cython supports bytes as is. The C char * type and the C++ string type are automatically compatible with the bytes type. there's a lot here. look at the documentation too.
