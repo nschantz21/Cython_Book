@@ -1,0 +1,102 @@
+Chapter 5: Cython and Extension Types
+
+Comparing Python Classes and Extension Types:
+    
+    In Python everything is an object.  The Python built-in types are implemented at the C level via the Python/C API and are incorporated into the Python runtime.
+    We can also create our own types at the C level directly using the Python/C API; these are known as extension types.
+    Cython makes creating and using extension types as straightforward as working with pure-Python classes. Extension types are created in Cython with the cdef class statement, and have much in common with regular Python classes.
+    remember that a cdef class has fast C-level access to all methods and data. This feature is the most significant difference between an extension type and a plain Python class defined in a .py module.
+
+Extension Types in Cython
+
+    When we compile a Python class to C with cython, the resulting class is just a regular Python class, not an extension type. When Cython compiles it to C, it is still implemented with general Python objects using dynamic dispatch for all operations. The generated code uses the Python/C API heavily and makes the same calls that the interpreter would if this class were defined in pure Python. Because the interpreter overhead is removed, the Cython version of Particle will have a small performance boost. But it does not benefit from any static typing, so the Cython code still has to fall back on dynamic dispatch to resolve types at runtime.
+    
+    The cdef type declarations in the class body are not, despite appearances, class-level attributes. They are C-level instance attributes; All instance attributes must be declared with cdef at the class levelfor extension types. 
+    
+    When an extension type is instantiated, a C struct is allocated and initialized. These steps require that the size and fields of that struct be known at compile time, hence the need to declare all attributes with cdef. C structs are fixed and not open to new members, so no new attributes can be set on an extension type instance.  Extension type attributes are private by default, and are accessible by the methods of the class.
+    
+Type Attributes and Access Control
+
+    Methods defined in cdef class extension types have full access to all instance attributes.  cython will translate any accesses into low-level accesses to C-struct fields.  This bypasses the general lookup process for pure-Python classes, and can lead to significant performance improvements.
+    
+    Cython class attributes are private by default, so you just use cdef.
+    To make it read only, use "cdef readonly" to declare.
+    to make it read/write, use "cdef public" to declare.
+    Extension type methods essentially ignore the readonly and public declarations. These exist only to allow and control access from Python.
+    
+C-Level Initialization and Finalization
+
+    At the C level, before Python's __init__ is called, the extension type instance’s struct must be allocated, and all struct fields must be in a valid state, ready to accept initial values.
+    Cython adds a special method named __cinit__ whose responsibility is to perform C-level allocation and initialization. Cython guarantees that __cinit__ is called exactly once and that it is called before __init__ , __new__ , or alternative Python-level constructors (e.g., classmethod constructors). Cython passes any initialization arguments into __cinit__
+    Cython also supports C-level finalization through the __dealloc__ special method. This method’s responsibility is to undo what __cinit__ did during creation.
+    Essentially __cinit__ makes all the C attributes before __init__. If you don't put them there, you'll get a segmentation fault or a Memory leak.
+    
+cdef and cpdef Methods
+
+    we cannot use cdef and cpdef to define methods on non-cdef classes; doing so is a compile-time error.  cdef is faster than def, but cannot be called from python.
+    cpdef can be called by Python and Cython. It essentially acts as a Python accessible wrapper for cdef methods. however, when called by Cython the argument and return types have to be automatically convertible from and to Python objects, respectively, which restricts the allowed types somewhat (no pointer types, for example).
+    we can improve speed in the Python function that is accessing the cpdef method by static typing the arguments, variables, and loop indexing variables.
+    the more we type, the less Python objects created, and speed is increased.
+    defining methods as cdef rather than cpdef can increase speed even further, but not significantly as the complexity of the calculation increases.  Therefore, it is better to use cpdef for the flexibility (ability to call from Python)
+    
+Inheritance and Subclassing
+
+    An extension type can subclass a single base type, and that base type must itself be a type implemented in C.
+    A cython base class can be derived into another Cython class or a Python class.
+    Derived Cython class can override the Cython base class methods.
+    Derived Python class can override def and cpdef base class methods, but cannot access any private C-level attributes or cdef methods.  Passing a derived Python class as an argument to a function that takes a Cython base class parameter can be expensive.
+    
+    Casting and Subclasses
+
+        Cython cannot access C-Level data or methods of dynamically typed objects - it has to go through the Python/C API.  The solution is to cast to a static type when possible.
+        You can either assign the dynamic object/variable to a different statically typed object/variable or you can cast directly using the Cython casting operator:
+            ex. cdef int *ptr_i = <int*>v
+        You can cast a C class derived Python class back to the C base class.  This will allow access to the private cdef members not avaialable to the Python class.
+        Direct unchecked casting should be done if no type checking is necessary - if it's a derived class. may raise a segmentaion fault if wrong.
+            ex. (<cast_type>dynamic_objectvariable).dynamic_method()
+        If you're not sure, then use the checked type casting - it's slower, but safer. will raise TypeError if wrong. 
+            ex. (<cast_type?>dynamic_objectvariable).dynamic_method()
+        
+    Extension Type Objects and None
+    
+        Cython allows a None type python object to be passed instead of a cdef object.  This is like a NULL pointer in C.  It is allowed wherever a C pointer is expected, but doing anything other than checking whether it is NULL will result in a segmentation fault or worse.
+        The None type has no C interface so calling a method or attribute is not valid.  We need to check if the agrument passed is of None type.
+        This is accomplished in the parameters of the function definition.
+            ex.    def function(object_type x not None):
+                     // whatever
+        If we access only Python-level methods (i.e., def methods) and Python-level attributes (public or readonly attributes, for example) on the object, then an exception will be raised, as the Python/C API will handle things for us.
+        You can also set a global level nonecheck compiler directive. this affects performance.  It makes all functions and methods None-safe.
+                At beginning of extension file:    # cython: nonecheck=True
+                Command line: cython --directive nonecheck=True source.pyx
+
+Extension Type Properties in Cython
+
+    Cython extension type properties - cython_object.property - is coded using the property keyword defined scope.  __get__() is used within the property scope to access the info, and is read-only.  you can optionally include docstrings as well.
+    the __set__ propery method allows modifiaction through assignment. 
+    we can also define a __del__ property method, which controls property deletion.
+    
+Special Methods Are Even More Special
+
+    When providing support for operator overloading with a Cython extension type, we have to define a special method;  Use __dealloc__ instead of __del__ for Extension types
+    
+    Arithmetic Methods
+    
+        you can overload the arithmetic (__add__) special methods.  the first argument is not self.  You need to check if either argument is of the type of the class for which we are defining the operator and throws a NotImplemented error if not.
+        The built-in type method will try if the overloaded method doesn't work.  If that fails, a TypeError will be raised.
+        in-place operations like __iadd__ always take an instance of the class as the first argument, so self is an appropriate name in these cases
+        
+    Rich Comparisons
+    
+        Cython provides a single relative comparison check - __richcmp__(x, y, cmp).  the third argument is the type of comparison. 
+        if a type supports rich comparisons, then chained comparisons are automatically supported as well.
+        To implement comparisons on an extension type, you need to cimport the operators from the cython.object module then define the behavior of each operator for Python.
+            ex. if operator == Py_LT:
+                    return ext_type < second_argument
+        
+    Iterator Support
+        
+        To make an extension type iterable, we define __iter__ on it.
+        To make an extension type an iterator, we define a __next__ special method on it.
+        Cython will expose __next__ as next to Python.
+        if you define both, you can use it as an iterator and iterate over it.
+        
