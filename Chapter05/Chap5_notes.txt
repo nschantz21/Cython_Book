@@ -9,19 +9,19 @@ Comparing Python Classes and Extension Types:
 
 Extension Types in Cython
 
-    When we compile a Python class to C with cython, the resulting class is just a regular Python class, not an extension type. When Cython compiles it to C, it is still implemented with general Python objects using dynamic dispatch for all operations. The generated code uses the Python/C API heavily and makes the same calls that the interpreter would if this class were defined in pure Python. Because the interpreter overhead is removed, the Cython version of Particle will have a small performance boost. But it does not benefit from any static typing, so the Cython code still has to fall back on dynamic dispatch to resolve types at runtime.
+    When we compile a Python class to C with cython, the resulting class is just a regular Python class, not an extension type. When Cython compiles it to C, it is still implemented with general Python objects using dynamic dispatch for all operations. The generated code uses the Python/C API heavily and makes the same calls that the interpreter would if this class were defined in pure Python. Because the interpreter overhead is removed, the Cython version will have a small performance boost. But if it does not benefit from any static typing, so the Cython code still has to fall back on dynamic dispatch to resolve types at runtime.
     
-    The cdef type declarations in the class body are not, despite appearances, class-level attributes. They are C-level instance attributes; All instance attributes must be declared with cdef at the class levelfor extension types. 
+    The cdef type declarations in the class body are not, despite appearances, class-level attributes. They are C-level instance attributes; All instance attributes must be declared with cdef at the class level for extension types. 
     
-    When an extension type is instantiated, a C struct is allocated and initialized. These steps require that the size and fields of that struct be known at compile time, hence the need to declare all attributes with cdef. C structs are fixed and not open to new members, so no new attributes can be set on an extension type instance.  Extension type attributes are private by default, and are accessible by the methods of the class.
+    When an extension type is instantiated, a C struct is allocated and initialized. These steps require that the size and fields of that struct be known at compile time, hence the need to declare all attributes with cdef. C structs are fixed and not open to new members, so no new attributes can be set on an extension type instance.  Extension type attributes are private by default, and are accessible by the methods of the class - like a C++ class.
     
 Type Attributes and Access Control
 
     Methods defined in cdef class extension types have full access to all instance attributes.  cython will translate any accesses into low-level accesses to C-struct fields.  This bypasses the general lookup process for pure-Python classes, and can lead to significant performance improvements.
     
     Cython class attributes are private by default, so you just use cdef.
-    To make it read only, use "cdef readonly" to declare.
-    to make it read/write, use "cdef public" to declare.
+        To make it read only, use "cdef readonly" to declare.
+        To make it read/write, use "cdef public" to declare.
     Extension type methods essentially ignore the readonly and public declarations. These exist only to allow and control access from Python.
     
 C-Level Initialization and Finalization
@@ -41,10 +41,10 @@ cdef and cpdef Methods
     
 Inheritance and Subclassing
 
-    An extension type can subclass a single base type, and that base type must itself be a type implemented in C.
+    An extension type can subclass (be derived from) a single base type, and that base type must itself be a type implemented in C.
     A cython base class can be derived into another Cython class or a Python class.
     Derived Cython class can override the Cython base class methods.
-    Derived Python class can override def and cpdef base class methods, but cannot access any private C-level attributes or cdef methods.  Passing a derived Python class as an argument to a function that takes a Cython base class parameter can be expensive.
+    Derived Python class can override def and cpdef base class methods, but cannot access any private C-level attributes or cdef methods.  Passing a derived Python class as an argument to a function that takes a Cython base class parameter can be expensive because it has to make a raw call to the Python/C API.
     
     Casting and Subclasses
 
@@ -99,4 +99,3 @@ Special Methods Are Even More Special
         To make an extension type an iterator, we define a __next__ special method on it.
         Cython will expose __next__ as next to Python.
         if you define both, you can use it as an iterator and iterate over it.
-        

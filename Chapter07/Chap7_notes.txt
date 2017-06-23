@@ -1,0 +1,88 @@
+Chapter 7: Wrapping C Libraries with Cython
+
+    Cython, while not automating the process like some, provides the capability to wrap external libraries in a straightforward way. Cython also makes C-level Cython constructs available to external C code, which can be useful when we are embedding Python in a C application.
+    
+Declaring External C Code in Cython:
+
+    First we declare the interface of the C components we want to use from the specified C header file with an extern block in Cython.
+    Including the extern block has the following effects:
+        The cython compiler generates an #include "header_name" line inside the generated source file
+        The types, functions, and other declarations made in the block body are accessible from Cython code
+        Cython will check at compile time that the C declarations are used in a type-correct manner, and will produce a compilation error if they are not.
+    If you want to include a header, but don't need to declare anything, just put pass in the extern block body.  If you want to interface with components already imported with another extern block just use '*' for the header name to supress it.
+        i.e.    cdef extern from *:
+                    declarations
+    
+    Cython Does Not Automate Wrapping
+        
+        The only C code that is generated for the entire extern block is a single #include "header.h" line.
+        We still have to write def and cpdef (and possibly cdef) functions that call the C functions declared in the extern block.
+        
+Declaring External C Functions and typedefs
+
+    The most common declarations placed inside an extern block are C functions and typedefs. 
+    typedef becomes ctypedef in Cython.
+    macros get declared as global variables or regular functions.
+    You should add variable names for function arguments when declaring in the extern block if not already present.
+    Because Cython uses extern blocks only to check type correctness, we can add helper ctypedef extern blocks to make complicated declarations easier to understand
+        
+Declaring and Wrapping C structs, unions, and enums
+
+    when declaring in an extern block you don't have to use cdef for each one. and if you want to alias (typedef in C) use ctypedef in Cython.
+    only declare fields in the struct, enum, and union that are actually used. If you just want to import it as an opaque type, then put pass in the body.
+        
+Wrapping C Functions
+    
+    After we have declared the external functions we want to use, we still must wrap them in a def function, a cpdef function, or a cdef class to access them from Python.
+    When making the distutils script (setup.py) you must include the C (.c) source file in the sources list
+    
+Wrapping C structs with Extension Types
+    
+    When declaring a struct, and presumably a Union or enum, declare the memory allocator, deallocator, the typedef (if any), and whatever functions you want.
+    Make an interface class with a cdef extension type so that the struct will be exposed to python.
+    because creating the externally declared heap-allocated struct must happen at the C level before your extension type interface object is initialized, the proper place to do it is in a __cinit__ method (because that happens before the regular __init__ method)
+    use def or cpdef methods corresponding directly to the C functions in order to access them in python.  Declaring methods cpdef when possible allows them to be called by external Python code, and efficiently from other Cython code. It also allows these methods to be overridden in Python subclasses.
+    Generate the extension file with your distutils script.
+    This is generally how C level Structs are wrapped.
+    The internal struct pointer is kept private and used only internally.
+    
+Constants, Other Modifiers, and Controlling What Cython Generates
+    
+        The const keywords can be used in Cython.  It is used in specific instances within cdef extern blocks to ensure Cython generates const-correct code and may be required when we are declaring a typedef that uses const, or when a function return value is declared const.
+        Other C-level modifiers, such as volatile and restrict, should be removed in Cython extern blocks.
+        To wrap an externally declared C function that shares a name with a python keyword or built-in function, we must quote the name of the imported C function within the extern block and alias it.
+             e.g. 
+                cdef extern from "printer.h":
+                    void _print "print"(fmt_str, arg)
+        In all cases, the string in quotes is the name of the object in generated C code. Cython does no checking on the contents of this string, so this feature can be used (or abused) to control the C-level declaration.
+    
+    
+Exposing Cython Code to C
+    
+    Cython allows us to declare C-level functions, variables, and structs with the cdef keyword. We are essentially wrapping Python in C. Two ways to do this:
+    1.  If we add the public keyword to a C-level type, variable, or function declared with cdef, then these constructs are made accessible to C code that is compiled or linked with the extension module. the public declarations cause the cython compiler to output a header in addition to the (.c) extension module.
+        
+        External C code that calls into our Cython code must also be sure both to initialize the Python interpreter with Py_Initialize - also needs "Python.h" - and to initialize the extension module before using any public declarations.
+        
+    2.  The second mechanism uses the api keyword, which can be attached to C-level functions and extension types only. It also causes a header file to be generated by cython.
+        Both api and public modifiers can be applied to the same object.
+        This method is more flexible in that it uses Python’s import mechanism to bring in the api-declared functions dynamically without explicitly compiling with the extension module source or linking against the dynamic library.
+        This is done in the C file before you use the function
+            import_your_extension_header();
+        be aware the api mechanism can only import functions and extension types not variables.
+
+Error Checking and Raising Exceptions
+    
+    C raises errors through return codes or error flags. We need to convert these to Python exceptions when we wrap the C functions.  We can't use the except clause. Cython cannot automatically detect when an external C function sets a C error state.  We will have to use the except clause in conjunction with cdef callbacks.
+        
+Callbacks
+    
+    Because Cython supports C pointers, we can wrap C functions that take function pointer callbacks (taking a function pointer as an argument). So we can pass a Python function created at runtime to control the behavior of the underlying C function.
+    In order to do this we must create cdef wrappers for the runtime defined python functions. - see ./qsort/pyqsort.pyx
+    
+Callbacks and Exception Propagation
+    
+    C wrapped python functions will ignore exceptions.  To address this limitation, we can use the except * clause when declaring our cdef callbacks and the calling function declaration in the cdef extern block.
+    also add the except * clause to the related ctypedef (if any) and the cdef callbacks - the functions you are going to pass to the original funtion.
+    Because we use the except * clause, the callbacks check for an exception after every call. This means there is some overhead associated with this functionality. However, the improved error handling may be more than worth the small performance cost.
+    Exception propagation with cdef callbacks goes a long way toward providing a Pythonic interface to a pure-C library

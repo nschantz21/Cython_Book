@@ -1,0 +1,70 @@
+Chapter 6: Organizing Cython Code
+
+Cython extension modules support "import" for Python objects defined in external pure-Python modules or Python-accessible objects defined in other extension modules.
+
+Cython provides three file types that help organize the Cython-specific and C-level parts of a project:
+    Cython implementation files: with a .pyx extension.
+    Cython definition files: with a .pxd extension.
+    Cython include files: with a .pxi extension.
+Cython has a cimport statement that provides compiletime
+access to C-level constructs, and it looks for these constructs’ declarations inside definition (.pxd) files.
+
+Cython Implementation (.pyx) and Declaration (.pxd) Files
+    
+    For small programs it's ok to make a single implementation file (.pyx); this will give all functions access to the C-level attributes of the objects, so there is no Python overhead when we are accessing or manipulating the objects in the file; however, if we want to make it any bigger, or share its C-level constructs, we need to create a definition file (.pxd).
+    This also allows the program to be more modular and easier to maintain. In the definitaion file, we place the declarations of C-level constructs that we wish to share
+    Definition files are meant for compile-time access so you can only put C-level declarations in it. No Python-only declarations—like def functions—are allowed, and it is a compile-time error to put them here. These functions are accessible at runtime, so they are just declared and defined inside the implementation file.
+    Similarly named declaration and implementation files are treated as a single namespace.  You cannot repeat any declaration file declarations in the implementation file - or you'll get a compilation error.
+    For a cdef class, the declaration includes the cdef class line (colon included) as well as the extension type’s name, all attribute declarations, and all method declarations.
+    The definitions of all objects, whether C level or Python level, go inside the implementation file.
+    Essentially, anything that is meant to be publicly accessible to other Cython modules at the C level goes in the Declaration file (.pxd):
+            C type declarations—ctypedef, struct, union, or enum
+            Declarations for external C or C++ libraries
+            Declarations for cdef and cpdef module-level functions
+            Declarations for cdef class extension types
+            The cdef attributes of extension types
+            Declarations for cdef and cpdef methods
+            The implementation of C-level inline functions and methods 
+    A definition file cannot contain:
+            Implementations of Python or non-inline C functions or methods
+            Python class definitions (i.e., regular classes)
+            Executable Python code outside of IF or DEF macros
+    To access the .pxy file all C-level constructs from an extenal file/program, you use the cimport statement. Use import for regular python constructs.
+
+The cimport Statement
+
+    cimport is at the C level and occurs at compile time.
+    import is at the Python level and occurs at runtime.
+    cimport lets you import the entire module or members. alias it or it's members.  
+    You can't cimport python-level objects, and you can't import C-only declarations.  You can import cpdef definitions and cdef classes (extension types), although you shouldn't b/c this blocks access to any private attributes or cdef methods, and cpdef methods and functions use the slower Python wrapper.
+    A definition file can contain cdef extern blocks (externally declared objects (not in this namespace)). It is useful to group such declarations inside their own .pxd files for use elsewhere. Doing so provides a useful namespace to help disambiguate where a function is declared. Essentially adding a level of abstraction for the imported functions.
+    
+Predefined Definition Files
+
+    Cython comes with the C standard library and C++ standard template library cython definition files (so you can cimport them), libc and libcpp respectively.  It also includes the cpython declaration file for the CPython source distribution C header files.
+    If we import and cimport different functions with the same name, Cython will issue a compile-time error. You can just alias one or both of them.
+    Cython supports the include statement for source-level inclusion of an external include file (.pxi)
+    
+Include Files and the include Statement
+
+    We can implement platform independent design goals through include files (.pxi) by abstracting the implementation differences.
+    You create an implementation of the extension type for each platform in the include file.  Then use an IF...ELIF..ELIF statement to choose the implementation based on platform.
+    These are like the compiler directives for C/C++.
+    
+Organizing and Compiling Cython Modules Inside Python Packages
+
+    In a the purely Python package, identify which modules need to be converted to Cython extension modules for performance. Use cdef and cpdef accordingly in the modules.
+    convert the python files into implementation files (.pyx) and extract their public Cython declarations into definition files (.pxd).  remember to qualify the names for importing.
+    e.g. from package.namespace.extension_file cimport extension_type as alias
+    You can then expose the C-level interface/attributes between extension modules. The rest of the pure Python package is unchanged and can access the Python-level interface of the extension modules.
+    You also need to compile the Cython source into extension modules.
+        use pyximport.install() for a quick check in the interpreter.
+        For a distributable compiled package use a distutils script.
+        
+            Use a glob pattern to recursively search all directories for .pyx implementation files and compile them as needed.  it will automatically detect when a .pyx file has changed and recompile as needed; detect interdependencies between implementation definition files; recompile all dependent implementation files.
+        i.e.    
+            setup(
+                name,
+                packages,
+                ext_modules=cythonize("**/*.pyx")
+                )

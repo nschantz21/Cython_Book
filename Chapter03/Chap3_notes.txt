@@ -22,7 +22,7 @@ Automatic Type Inference in Cython
     By means of the infer_types compiler directive we can give Cython more leeway to infer types in cases that may possibly change semantics.
     To enable type inference for a function, we can use the decorator form of infer_types (@cython.infer_types(True)).
     When enabling infer_types, we are taking responsibility to ensure that integer operations do not overflow and that semantics do not change from the untyped version. The infer_types directive can be enabled at function scope or globally, making it easy to test whether it changes the results of the code base, and whether it makes a difference in performance.
-    
+
 C Pointers in Cython
 
     Cython does not support the *a syntax to dereference a C pointer. Instead, we index into the pointer at location 0 to dereference a pointer in Cython(ie pointer[0]). This syntax also works to dereference a pointer in C, although that’s rare.
@@ -67,7 +67,7 @@ Cython’s Three Kinds of Functions
     
         cdef and cpdef—may return a non-Python type exception, which makes some other exception-indicating mechanism necessary.
         To correctly propagate an exception, Cython provides an except clause to allow a cdef or cpdef function to communicate to its caller that a Python exception has or may have occurred during its execution.
-        We can add the keyword "except" optionally followed by "?" if the exception return could be a valid result of the function.  This is followed by the exception state value.  if the excpetion value is returned, Cython checks if the global exception state has been set, and if so, starts unwinding the stack.  If there is a return value that always indicates an error has occurred without ambiguity, then the question mark can be omitted. Alternatively, to have Cython check if an exception has been raised regardless of return value, we can use the except * clause instead - lots of overhead.
+        We can add the keyword "except" optionally followed by "?" if the exception return could be a valid result of the function.  This is followed by the exception state value.  if the excpetion value is returned, Cython checks if the global exception state has been set, and if so, starts unwinding the stack.  If there is a return value that always indicates an error has occurred without ambiguity, then the question mark can be omitted. Alternatively, to have Cython check if an exception has been raised regardless of return value, we can use the "except *" clause instead - lots of overhead.
     
     Functions and the embedsignature Compiler Directive
     
@@ -100,7 +100,7 @@ Type Aliasing with ctypedef
 
 Cython for Loops and while Loops
 
-        Use static typing on iterators and ranges to speed up.
+        Use static typing on iterators and ranges to improve performance.
     
     Guidelines for Efficient Loops
         
